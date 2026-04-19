@@ -1,6 +1,7 @@
 package com.yas.location.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -101,6 +102,14 @@ public class AddressServiceTest {
     }
 
     @Test
+    void getAllAddresses_EmptyIds_ReturnsEmptyList() {
+        List<AddressDetailVm> addressDetailVmList = addressService.getAddressList(List.of());
+
+        assertNotNull(addressDetailVmList);
+        assertEquals(0, addressDetailVmList.size());
+    }
+
+    @Test
     void updateAddress_validData_Success() {
         generateTestData();
         AddressPostVm addressPostVm = AddressPostVm.builder()
@@ -157,11 +166,13 @@ public class AddressServiceTest {
     @Test
     void deleteAddress_givenAddressIdValid_thenSuccess() {
         generateTestData();
-        Long id = addressRepository.findAll().getFirst().getId();
+        Long id = addressRepository.findAll().get(0).getId();
         addressService.deleteAddress(id);
-        // make a call to get the address with id which has been deleted -> throw error not found because deleted success.
-        NotFoundException exception = assertThrows(NotFoundException.class, () -> addressService.getAddress(100000L));
-        assertEquals(String.format("The address %s is not found", "100000"), exception.getMessage());
+
+        assertFalse(addressRepository.findById(id).isPresent());
+
+        NotFoundException exception = assertThrows(NotFoundException.class, () -> addressService.getAddress(id));
+        assertEquals(String.format("The address %s is not found", id), exception.getMessage());
     }
 
     @Test

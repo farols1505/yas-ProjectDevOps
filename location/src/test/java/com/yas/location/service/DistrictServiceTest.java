@@ -1,6 +1,7 @@
 package com.yas.location.service;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.yas.location.LocationApplication;
 import com.yas.location.model.Country;
@@ -58,5 +59,15 @@ public class DistrictServiceTest {
         generateTestData();
         List<DistrictGetVm> districtGetVm = districtService.getList(district1.getId());
         assertNotNull(districtGetVm);
+    }
+
+    @Test
+    void getDistrict_WithInvalidId_ReturnEmptyList() {
+        generateTestData();
+
+        List<DistrictGetVm> districtGetVm = districtService.getList(99999L);
+
+        assertNotNull(districtGetVm);
+        assertTrue(districtGetVm.isEmpty());
     }
 }
