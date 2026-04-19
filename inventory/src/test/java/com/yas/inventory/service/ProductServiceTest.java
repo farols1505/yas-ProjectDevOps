@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -115,6 +116,38 @@ class ProductServiceTest {
         assertFalse(result.isEmpty());
         assertEquals(1, result.size());
         assertEquals(productName, result.getFirst().name());
+    }
+
+    @Test
+    void testFilterProducts_whenProductIdsEmpty_thenOmitsProductIdsQueryParam() {
+        String productName = "N";
+        String productSku = "S";
+        FilterExistInWhSelection selection = FilterExistInWhSelection.NO;
+        List<Long> productIds = List.of();
+
+        final URI url = UriComponentsBuilder
+            .fromUriString(PRODUCT_URL)
+            .path("/backoffice/products/for-warehouse")
+            .queryParam("name", productName)
+            .queryParam("sku", productSku)
+            .queryParam("selection", selection.name())
+            .build()
+            .toUri();
+
+        RestClient.RequestHeadersUriSpec requestHeadersUriSpec =
+            Mockito.mock(RestClient.RequestHeadersUriSpec.class);
+        when(restClient.get()).thenReturn(requestHeadersUriSpec);
+        when(requestHeadersUriSpec.uri(url)).thenReturn(requestHeadersUriSpec);
+        when(requestHeadersUriSpec.headers(any())).thenReturn(requestHeadersUriSpec);
+        when(requestHeadersUriSpec.retrieve()).thenReturn(responseSpec);
+        ResponseEntity responseEntity = mock(ResponseEntity.class);
+        when(responseSpec.toEntity(new ParameterizedTypeReference<List<ProductInfoVm>>() {}))
+            .thenReturn(responseEntity);
+        when(responseEntity.getBody()).thenReturn(List.of());
+
+        List<ProductInfoVm> result = productService.filterProducts(productName, productSku, productIds, selection);
+
+        assertTrue(result.isEmpty());
     }
 
     @Test
