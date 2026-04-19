@@ -2,6 +2,7 @@ package com.yas.cart.service;
 
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 import com.yas.commonlibrary.config.ServiceUrlConfig;
@@ -10,6 +11,7 @@ import java.net.URI;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.ResponseEntity;
@@ -62,6 +64,47 @@ class ProductServiceTest {
         assertThat(result.get(0).id()).isEqualTo(1);
         assertThat(result.get(1).id()).isEqualTo(2);
         assertThat(result.get(2).id()).isEqualTo(3);
+    }
+
+    @Test
+    void getProducts_whenBodyEmpty_returnsEmptyList() {
+        when(serviceUrlConfig.product()).thenReturn("http://api.yas.local/media");
+        when(restClient.get()).thenReturn(requestHeadersUriSpec);
+        when(requestHeadersUriSpec.uri(any(URI.class))).thenReturn(requestHeadersUriSpec);
+        when(requestHeadersUriSpec.retrieve()).thenReturn(responseSpec);
+        when(responseSpec.toEntity(ArgumentMatchers.<ParameterizedTypeReference<List<ProductThumbnailVm>>>any()))
+            .thenReturn(ResponseEntity.ok(List.of()));
+
+        List<ProductThumbnailVm> result = productService.getProducts(List.of(9L));
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void getProductById_whenNoProducts_returnsNull() {
+        when(serviceUrlConfig.product()).thenReturn("http://api.yas.local/media");
+        when(restClient.get()).thenReturn(requestHeadersUriSpec);
+        when(requestHeadersUriSpec.uri(any(URI.class))).thenReturn(requestHeadersUriSpec);
+        when(requestHeadersUriSpec.retrieve()).thenReturn(responseSpec);
+        when(responseSpec.toEntity(ArgumentMatchers.<ParameterizedTypeReference<List<ProductThumbnailVm>>>any()))
+            .thenReturn(ResponseEntity.ok(List.of()));
+
+        assertThat(productService.getProductById(42L)).isNull();
+        assertThat(productService.existsById(42L)).isFalse();
+    }
+
+    @Test
+    void getProductById_whenProductsReturned_returnsFirst() {
+        ProductThumbnailVm vm = new ProductThumbnailVm(7L, "N", "n", "http://u");
+        when(serviceUrlConfig.product()).thenReturn("http://api.yas.local/media");
+        when(restClient.get()).thenReturn(requestHeadersUriSpec);
+        when(requestHeadersUriSpec.uri(any(URI.class))).thenReturn(requestHeadersUriSpec);
+        when(requestHeadersUriSpec.retrieve()).thenReturn(responseSpec);
+        when(responseSpec.toEntity(ArgumentMatchers.<ParameterizedTypeReference<List<ProductThumbnailVm>>>any()))
+            .thenReturn(ResponseEntity.ok(List.of(vm, new ProductThumbnailVm(8L, "x", "x", "y"))));
+
+        assertThat(productService.getProductById(7L)).isEqualTo(vm);
+        assertThat(productService.existsById(7L)).isTrue();
     }
 
     private List<ProductThumbnailVm> getProductThumbnailVms() {
