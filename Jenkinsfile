@@ -8,14 +8,16 @@ pipeline {
 
     environment {
         SONARQUBE_ENV = 'SonarQubeServer'
-		TESTCONTAINERS_RYUK_DISABLED = 'true' // Vô hiệu hóa Ryuk để tránh lỗi permission
+        TESTCONTAINERS_RYUK_DISABLED = 'true'
     }
 
     stages {
 
+        // ========================
+        // CHECKOUT
+        // ========================
         stage('Checkout') {
             steps {
-                // Đảm bảo có đủ lịch sử để changeset hoạt động ổn định
                 checkout([
                     $class: 'GitSCM',
                     branches: scm.branches,
@@ -26,14 +28,13 @@ pipeline {
         }
 
         // ========================
-        // SECURITY SCAN (Yêu cầu 7c)
+        // SECURITY SCAN
         // ========================
         stage('Security Scans') {
             parallel {
                 stage('Gitleaks') {
                     steps {
                         sh "gitleaks detect --source . --report-format json --report-path gitleaks-report.json || true"
-                        // archiveArtifacts artifacts: 'gitleaks-report.json', allowEmptyArchive: true
                     }
                 }
 
@@ -44,8 +45,6 @@ pipeline {
                             snyk auth \$SNYK_TOKEN
                             snyk test --all-projects --severity-threshold=high || true
                             """
-
-			    // archiveArtifacts artifacts: 'snyk-report.json', allowEmptyArchive: true
                         }
                     }
                 }
@@ -53,7 +52,7 @@ pipeline {
         }
 
         // ========================
-        // PROCESS MODULES (Yêu cầu 6)
+        // MODULE PROCESSING
         // ========================
         stage('Modules Processing') {
             parallel {
@@ -106,7 +105,7 @@ pipeline {
         }
 
         // ========================
-        // FALLBACK (tránh pipeline pass rỗng)
+        // FALLBACK
         // ========================
         stage('No Changes Fallback') {
             when {
@@ -125,27 +124,56 @@ pipeline {
                 }
             }
             steps {
-                echo "No module changes detected → skipping module build."
+                echo "No module changes detected → skipping build/test."
             }
         }
 
         // ========================
-        // SONARQUBE (Yêu cầu 7c)
+        // SONARQUBE
         // ========================
         stage('SonarQube Analysis') {
-    		steps {
-        		withSonarQubeEnv("${SONARQUBE_ENV}") {
-            		sh """
-            		mvn clean verify \
-            		sonar:sonar \
-            		-Dsonar.projectKey=yas-project \
-            		-Dsonar.coverage.jacoco.xmlReportPaths=**/target/site/jacoco/jacoco.xml
-            		"""
-        		}
-    		}
-		}
+            when {
+                anyOf {
+                    changeset "product/**"
+                    changeset "media/**"
+                    changeset "cart/**"
+                    changeset "customer/**"
+                    changeset "inventory/**"
+                    changeset "payment/**"
+                    changeset "tax/**"
+                    changeset "rating/**"
+                    changeset "location/**"
+                }
+            }
+            steps {
+                withSonarQubeEnv("${SONARQUBE_ENV}") {
+                    sh """
+                    mvn sonar:sonar \
+                    -Dsonar.projectKey=yas-project \
+                    -Dsonar.coverage.jacoco.xmlReportPaths=**/target/site/jacoco/jacoco.xml \
+                    -DskipTests
+                    """
+                }
+            }
+        }
 
+        // ========================
+        // QUALITY GATE
+        // ========================
         stage('Quality Gate') {
+            when {
+                anyOf {
+                    changeset "product/**"
+                    changeset "media/**"
+                    changeset "cart/**"
+                    changeset "customer/**"
+                    changeset "inventory/**"
+                    changeset "payment/**"
+                    changeset "tax/**"
+                    changeset "rating/**"
+                    changeset "location/**"
+                }
+            }
             steps {
                 timeout(time: 5, unit: 'MINUTES') {
                     waitForQualityGate abortPipeline: true
@@ -164,12 +192,11 @@ pipeline {
     }
 }
 
-
-/**
- * ========================
- * MODULE PROCESS FUNCTION
- * ========================
- */
+//
+// ========================
+// MODULE FUNCTION
+// ========================
+//
 def processModule(String moduleName) {
     script {
         def javaHome = tool 'JDK21'
@@ -182,6 +209,7 @@ def processModule(String moduleName) {
         ]) {
 
             sh """
+            # Fix lỗi logback /tmp
             find . -name "logback.xml" -delete
             find . -name "logback-spring.xml" -delete
 
@@ -190,7 +218,9 @@ def processModule(String moduleName) {
             -DtrimStackTrace=true
             """
 
-            junit allowEmptyResults: true, testResults: "**/target/surefire-reports/*.xml, **/target/failsafe-reports/*.xml"
+            // Publish test results
+            junit allowEmptyResults: true,
+                  testResults: "**/target/surefire-reports/*.xml, **/target/failsafe-reports/*.xml"
 
             recordCoverage(
                 tools: [[parser: 'JACOCO', pattern: "${moduleName}/target/site/jacoco/jacoco.xml"]],
@@ -198,8 +228,6 @@ def processModule(String moduleName) {
                     [threshold: 70.0, metric: 'LINE', baseline: 'PROJECT', criticality: 'FAILURE']
                 ]
             )
-
-            sh "mvn clean package -pl ${moduleName} -am -DskipTests"
         }
     }
 }
