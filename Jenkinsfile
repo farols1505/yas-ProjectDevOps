@@ -131,21 +131,6 @@ pipeline {
             }
         }
 
-        // ========================
-        // SONARQUBE (Yêu cầu 7c)
-        // ========================
-        stage('SonarQube Analysis') {
-            steps {
-                withSonarQubeEnv("${SONARQUBE_ENV}") {
-	            // Build để tạo .class files
-		    	sh "mvn clean install -DskipTests"
-
-		    	// Sonar scan
-                sh "mvn sonar:sonar -Dsonar.projectKey=yas-project"
-                }
-            }
-        }
-
         stage('Quality Gate') {
             steps {
                 timeout(time: 5, unit: 'MINUTES') {
@@ -181,26 +166,25 @@ def processModule(String moduleName) {
             "PATH+JAVA=${javaHome}/bin",
             "PATH+MAVEN=${mvnHome}/bin"
         ]) {
+            withSonarQubeEnv("${SONARQUBE_ENV}") { // Đưa Sonar vào đây
+                sh """
+                find . -name "logback.xml" -delete
+                find . -name "logback-spring.xml" -delete
 
-            sh """
-            find . -name "logback.xml" -delete
-            find . -name "logback-spring.xml" -delete
+                # Chạy test, tạo report và đẩy lên Sonar cho module này
+                mvn clean verify sonar:sonar \
+                -pl ${moduleName} -am \
+                -Dsonar.projectKey=yas-project-${moduleName} \
+                -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
+                """
+            }
 
-            mvn clean verify jacoco:report \
-            -pl ${moduleName} -am \
-            -DtrimStackTrace=true
-            """
-
-            junit allowEmptyResults: true, testResults: "**/target/surefire-reports/*.xml, **/target/failsafe-reports/*.xml"
+            junit allowEmptyResults: true, testResults: "**/target/surefire-reports/*.xml"
 
             recordCoverage(
                 tools: [[parser: 'JACOCO', pattern: "${moduleName}/target/site/jacoco/jacoco.xml"]],
-                qualityGates: [
-                    [threshold: 70.0, metric: 'LINE', baseline: 'PROJECT', criticality: 'FAILURE']
-                ]
+                qualityGates: [[threshold: 70.0, metric: 'LINE', baseline: 'PROJECT', criticality: 'FAILURE']]
             )
-
-            sh "mvn clean package -pl ${moduleName} -am -DskipTests"
         }
     }
 }
