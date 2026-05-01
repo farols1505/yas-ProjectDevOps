@@ -176,19 +176,23 @@ def processModule(String moduleName) {
         def javaHome = tool 'JDK21'
         def mvnHome = tool 'Maven3.9'
 
-        withEnv(["JAVA_HOME=${javaHome}", "PATH+JAVA=${javaHome}/bin", "PATH+MAVEN=${mvnHome}/bin", "DOCKER_HOST=unix:///var/run/docker.sock"]) {
-            
-            // Chạy verify thay vì test để kích hoạt cả Integration Test (Failsafe)
-            sh """
-				mvn clean verify \
-				-pl ${moduleName} -am \
-				-Dlogback.configurationFile=src/test/resources/logback-test.xml
-				"""
+        withEnv([
+            "JAVA_HOME=${javaHome}",
+            "PATH+JAVA=${javaHome}/bin",
+            "PATH+MAVEN=${mvnHome}/bin"
+        ]) {
 
-            // 1. Thu thập kết quả Test
+            sh """
+            find . -name "logback.xml" -delete
+            find . -name "logback-spring.xml" -delete
+
+            mvn clean verify jacoco:report \
+            -pl ${moduleName} -am \
+            -DtrimStackTrace=true
+            """
+
             junit allowEmptyResults: true, testResults: "**/target/surefire-reports/*.xml, **/target/failsafe-reports/*.xml"
 
-            // 2. Sử dụng recordCoverage để tạo báo cáo đẹp và check gate[cite: 3]
             recordCoverage(
                 tools: [[parser: 'JACOCO', pattern: "${moduleName}/target/site/jacoco/jacoco.xml"]],
                 qualityGates: [
@@ -196,7 +200,6 @@ def processModule(String moduleName) {
                 ]
             )
 
-            // 3. Build package[cite: 3, 4]
             sh "mvn clean package -pl ${moduleName} -am -DskipTests"
         }
     }
