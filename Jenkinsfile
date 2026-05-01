@@ -1,84 +1,206 @@
 pipeline {
     agent any
 
-    // Header thông tin đồ án (Tùy chọn để giảng viên dễ theo dõi)
-    // Sinh viên: Phan Văn Hoa - MSSV: 22120107
-    
+    tools {
+        jdk 'JDK21'
+        maven 'Maven3.9'
+    }
+
+    environment {
+        SONARQUBE_ENV = 'SonarQubeServer'
+		TESTCONTAINERS_RYUK_DISABLED = 'true' // Vô hiệu hóa Ryuk để tránh lỗi permission[cite: 3]
+    }
+
     stages {
-        // ==========================================
-        // 1. PIPELINE CHO PAYMENT SERVICE
-        // ==========================================
-        stage('Payment Service') {
-            when {
-                // Chỉ kích hoạt khi có thay đổi trong thư mục payment
-                changeset "payment/**"
+
+        stage('Checkout') {
+            steps {
+                // Đảm bảo có đủ lịch sử để changeset hoạt động ổn định
+                checkout([
+                    $class: 'GitSCM',
+                    branches: scm.branches,
+                    userRemoteConfigs: scm.userRemoteConfigs,
+                    extensions: [[$class: 'CloneOption', depth: 0]]
+                ])
             }
-            stages {
-                stage('Build Payment') {
+        }
+
+        // ========================
+        // SECURITY SCAN (Yêu cầu 7c)
+        // ========================
+        stage('Security Scans') {
+            parallel {
+                stage('Gitleaks') {
                     steps {
-                        dir('payment') {
-                            echo "--- ĐANG THỰC HIỆN BUILD: PAYMENT SERVICE ---"
-                            // sh './mvnw clean package -DskipTests' // Ví dụ lệnh build cho Java
-                        }
+                        sh "gitleaks detect --source . --report-format json --report-path gitleaks-report.json || true"
+                        archiveArtifacts artifacts: 'gitleaks-report.json', allowEmptyArchive: true
                     }
                 }
-                stage('Test Payment') {
+
+                stage('Snyk') {
                     steps {
-                        dir('payment') {
-                            echo "--- ĐANG THỰC HIỆN TEST: PAYMENT SERVICE ---"
-                            // sh './mvnw test' 
-                        }
-                    }
-                    post {
-                        always {
-                            echo "Đang thu thập báo cáo test và độ phủ cho Payment..."
-                            // 1. Upload kết quả test (JUnit XML)
-                            // junit 'payment/target/surefire-reports/*.xml'
-                            
-                            // 2. Lưu trữ báo cáo độ phủ (Coverage HTML/Artifacts)
-                            // archiveArtifacts artifacts: 'payment/target/site/jacoco/**', allowEmptyArchive: true
+                        withCredentials([string(credentialsId: 'snyk-token', variable: 'SNYK_TOKEN')]) {
+                            sh """
+                            snyk auth \$SNYK_TOKEN
+                            snyk test --all-projects --severity-threshold=high || true
+                            """
+
+							sh "docker ps"
+
+			    archiveArtifacts artifacts: 'snyk-report.json', allowEmptyArchive: true
                         }
                     }
                 }
             }
         }
 
-        // ==========================================
-        // 2. PIPELINE CHO RATING SERVICE
-        // ==========================================
-        stage('Rating Service') {
-            when {
-                // Chỉ kích hoạt khi có thay đổi trong thư mục rating
-                changeset "rating/**"
+        // ========================
+        // PROCESS MODULES (Yêu cầu 6)
+        // ========================
+        stage('Modules Processing') {
+            parallel {
+
+                stage('Product') {
+                    when { changeset "product/**" }
+                    steps { processModule("product") }
+                }
+
+                stage('Media') {
+                    when { changeset "media/**" }
+                    steps { processModule("media") }
+                }
+
+                stage('Cart') {
+                    when { changeset "cart/**" }
+                    steps { processModule("cart") }
+                }
+
+                stage('Customer') {
+                    when { changeset "customer/**" }
+                    steps { processModule("customer") }
+                }
+
+                stage('Inventory') {
+                    when { changeset "inventory/**" }
+                    steps { processModule("inventory") }
+                }
+
+                stage('Payment') {
+                    when { changeset "payment/**" }
+                    steps { processModule("payment") }
+                }
+
+                stage('Tax') {
+                    when { changeset "tax/**" }
+                    steps { processModule("tax") }
+                }
+
+                stage('Rating') {
+                    when { changeset "rating/**" }
+                    steps { processModule("rating") }
+                }
+
+                stage('Location') {
+                    when { changeset "location/**" }
+                    steps { processModule("location") }
+                }
             }
-            stages {
-                stage('Build Rating') {
-                    steps {
-                        dir('rating') {
-                            echo "--- ĐANG THỰC HIỆN BUILD: RATING SERVICE ---"
-                        }
+        }
+
+        // ========================
+        // FALLBACK (tránh pipeline pass rỗng)
+        // ========================
+        stage('No Changes Fallback') {
+            when {
+                not {
+                    anyOf {
+                        changeset "product/**"
+                        changeset "media/**"
+                        changeset "cart/**"
+                        changeset "customer/**"
+                        changeset "inventory/**"
+                        changeset "payment/**"
+                        changeset "tax/**"
+                        changeset "rating/**"
+                        changeset "location/**"
                     }
                 }
-                stage('Test Rating') {
-                    steps {
-                        dir('rating') {
-                            echo "--- ĐANG THỰC HIỆN TEST: RATING SERVICE ---"
-                        }
-                    }
-                    post {
-                        always {
-                            echo "Đang thu thập báo cáo cho Rating..."
-                            // archiveArtifacts artifacts: 'rating/coverage/**', allowEmptyArchive: true
-                        }
-                    }
+            }
+            steps {
+                echo "No module changes detected → skipping module build."
+            }
+        }
+
+        // ========================
+        // SONARQUBE (Yêu cầu 7c)
+        // ========================
+        stage('SonarQube Analysis') {
+            steps {
+                withSonarQubeEnv("${SONARQUBE_ENV}") {
+	            // Build để tạo .class files
+		    	sh "mvn clean install -DskipTests"
+
+		    	// Sonar scan
+                sh "mvn sonar:sonar -Dsonar.projectKey=yas-project"
+                }
+            }
+        }
+
+        stage('Quality Gate') {
+            steps {
+                timeout(time: 5, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
                 }
             }
         }
     }
 
     post {
+        success {
+            echo 'Pipeline SUCCESS'
+        }
         failure {
-            echo "Pipeline thất bại. Vui lòng kiểm tra lại log của service tương ứng."
+            echo 'Pipeline FAILED'
+        }
+    }
+}
+
+
+/**
+ * ========================
+ * MODULE PROCESS FUNCTION
+ * ========================
+ */
+def processModule(String moduleName) {
+    script {
+        def javaHome = tool 'JDK21'
+        def mvnHome = tool 'Maven3.9'
+
+        withEnv([
+            "JAVA_HOME=${javaHome}",
+            "PATH+JAVA=${javaHome}/bin",
+            "PATH+MAVEN=${mvnHome}/bin"
+        ]) {
+
+            sh """
+            find . -name "logback.xml" -delete
+            find . -name "logback-spring.xml" -delete
+
+            mvn clean verify jacoco:report \
+            -pl ${moduleName} -am \
+            -DtrimStackTrace=true
+            """
+
+            junit allowEmptyResults: true, testResults: "**/target/surefire-reports/*.xml, **/target/failsafe-reports/*.xml"
+
+            recordCoverage(
+                tools: [[parser: 'JACOCO', pattern: "${moduleName}/target/site/jacoco/jacoco.xml"]],
+                qualityGates: [
+                    [threshold: 70.0, metric: 'LINE', baseline: 'PROJECT', criticality: 'FAILURE']
+                ]
+            )
+
+            sh "mvn clean package -pl ${moduleName} -am -DskipTests"
         }
     }
 }
