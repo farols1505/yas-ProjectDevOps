@@ -8,7 +8,7 @@ pipeline {
 
     environment {
         SONARQUBE_ENV = 'SonarQubeServer'
-		TESTCONTAINERS_RYUK_DISABLED = 'true' // Vô hiệu hóa Ryuk để tránh lỗi permission[cite: 3]
+		TESTCONTAINERS_RYUK_DISABLED = 'true' // Vô hiệu hóa Ryuk để tránh lỗi permission
     }
 
     stages {
@@ -33,7 +33,7 @@ pipeline {
                 stage('Gitleaks') {
                     steps {
                         sh "gitleaks detect --source . --report-format json --report-path gitleaks-report.json || true"
-                        archiveArtifacts artifacts: 'gitleaks-report.json', allowEmptyArchive: true
+                        // archiveArtifacts artifacts: 'gitleaks-report.json', allowEmptyArchive: true
                     }
                 }
 
@@ -45,9 +45,7 @@ pipeline {
                             snyk test --all-projects --severity-threshold=high || true
                             """
 
-							sh "docker ps"
-
-			    archiveArtifacts artifacts: 'snyk-report.json', allowEmptyArchive: true
+			    // archiveArtifacts artifacts: 'snyk-report.json', allowEmptyArchive: true
                         }
                     }
                 }
@@ -131,6 +129,22 @@ pipeline {
             }
         }
 
+        // ========================
+        // SONARQUBE (Yêu cầu 7c)
+        // ========================
+        stage('SonarQube Analysis') {
+    		steps {
+        		withSonarQubeEnv("${SONARQUBE_ENV}") {
+            		sh """
+            		mvn clean verify \
+            		sonar:sonar \
+            		-Dsonar.projectKey=yas-project \
+            		-Dsonar.coverage.jacoco.xmlReportPaths=**/target/site/jacoco/jacoco.xml
+            		"""
+        		}
+    		}
+		}
+
         stage('Quality Gate') {
             steps {
                 timeout(time: 5, unit: 'MINUTES') {
@@ -166,25 +180,26 @@ def processModule(String moduleName) {
             "PATH+JAVA=${javaHome}/bin",
             "PATH+MAVEN=${mvnHome}/bin"
         ]) {
-            withSonarQubeEnv("${SONARQUBE_ENV}") { // Đưa Sonar vào đây
-                sh """
-                find . -name "logback.xml" -delete
-                find . -name "logback-spring.xml" -delete
 
-                # Chạy test, tạo report và đẩy lên Sonar cho module này
-                mvn clean verify sonar:sonar \
-                -pl ${moduleName} -am \
-                -Dsonar.projectKey=yas-project-${moduleName} \
-                -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
-                """
-            }
+            sh """
+            find . -name "logback.xml" -delete
+            find . -name "logback-spring.xml" -delete
 
-            junit allowEmptyResults: true, testResults: "**/target/surefire-reports/*.xml"
+            mvn clean verify jacoco:report \
+            -pl ${moduleName} -am \
+            -DtrimStackTrace=true
+            """
+
+            junit allowEmptyResults: true, testResults: "**/target/surefire-reports/*.xml, **/target/failsafe-reports/*.xml"
 
             recordCoverage(
                 tools: [[parser: 'JACOCO', pattern: "${moduleName}/target/site/jacoco/jacoco.xml"]],
-                qualityGates: [[threshold: 70.0, metric: 'LINE', baseline: 'PROJECT', criticality: 'FAILURE']]
+                qualityGates: [
+                    [threshold: 70.0, metric: 'LINE', baseline: 'PROJECT', criticality: 'FAILURE']
+                ]
             )
+
+            sh "mvn clean package -pl ${moduleName} -am -DskipTests"
         }
     }
 }
