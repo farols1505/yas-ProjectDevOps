@@ -174,34 +174,23 @@ def processModule(String moduleName) {
         def javaHome = tool 'JDK21'
         def mvnHome = tool 'Maven3.9'
 
-        // Bọc toàn bộ các lệnh Maven vào withEnv để nhận đúng Java 25[cite: 3]
-        withEnv([
-            "JAVA_HOME=${javaHome}", 
-            "PATH+JAVA=${javaHome}/bin", 
-            "PATH+MAVEN=${mvnHome}/bin",
-            "DOCKER_HOST=unix:///var/run/docker.sock" // Cấu hình then chốt[cite: 3]
-        ]) {
-            echo "Processing module: ${moduleName}"
+        withEnv(["JAVA_HOME=${javaHome}", "PATH+JAVA=${javaHome}/bin", "PATH+MAVEN=${mvnHome}/bin", "DOCKER_HOST=unix:///var/run/docker.sock"]) {
+            
+            // Chạy verify thay vì test để kích hoạt cả Integration Test (Failsafe)
+            sh "mvn clean verify jacoco:report -pl ${moduleName} -am -DtrimStackTrace=true"
 
-            // Test + Coverage với quyền truy cập Docker cho Testcontainers[cite: 2, 3]
-            sh "mvn clean test jacoco:report -pl ${moduleName} -am"
+            // 1. Thu thập kết quả Test
+            junit allowEmptyResults: true, testResults: "**/target/surefire-reports/*.xml, **/target/failsafe-reports/*.xml"
 
-            junit "**/${moduleName}/target/surefire-reports/*.xml"
-            jacoco execPattern: "**/${moduleName}/target/jacoco.exec",
-                   classPattern: "**/${moduleName}/target/classes",
-                   sourcePattern: "**/${moduleName}/src/main/java"
+            // 2. Sử dụng recordCoverage để tạo báo cáo đẹp và check gate[cite: 3]
+            recordCoverage(
+                tools: [[parser: 'JACOCO', pattern: "${moduleName}/target/site/jacoco/jacoco.xml"]],
+                qualityGates: [
+                    [threshold: 70.0, metric: 'LINE', baseline: 'PROJECT', criticality: 'FAILURE']
+                ]
+            )
 
-            // Kiểm tra Coverage >= 70%[cite: 2, 3]
-            def coverageFile = "${moduleName}/target/site/jacoco/jacoco.xml"
-            if (fileExists(coverageFile)) {
-                def xml = readFile(coverageFile)
-                def parser = new XmlSlurper().parseText(xml)
-                def percent = parser.@'line-rate'.toFloat() * 100
-                echo "Coverage of ${moduleName}: ${percent}%"
-                if (percent < 70) { error "Coverage of ${moduleName} is below 70%" }
-            }
-
-            // Build module[cite: 3, 4]
+            // 3. Build package[cite: 3, 4]
             sh "mvn clean package -pl ${moduleName} -am -DskipTests"
         }
     }
