@@ -175,7 +175,7 @@ def processModule(String moduleName) {
     // ========================
     // TEST + COVERAGE
     // ========================
-    sh "mvn clean test jacoco:report -pl ${moduleName} -am -Dmaven.test.failure.ignore=true"
+    sh "mvn clean test jacoco:report -pl ${moduleName} -am -e -X"
 
     junit "**/${moduleName}/target/surefire-reports/*.xml"
 
