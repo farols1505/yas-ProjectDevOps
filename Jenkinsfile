@@ -147,6 +147,8 @@ pipeline {
             }
             steps {
                 withSonarQubeEnv("${SONARQUBE_ENV}") {
+                    sh "mvn install -DskipTests"
+
                     sh """
                     mvn sonar:sonar \
                     -pl . -am \
