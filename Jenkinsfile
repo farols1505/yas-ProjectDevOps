@@ -233,3 +233,43 @@ def processModule(String moduleName) {
         }
     }
 }
+
+
+/**
+ * ========================
+ * MODULE PROCESS FUNCTION
+ * ========================
+ */
+def processModule(String moduleName) {
+    script {
+        def javaHome = tool 'JDK21'
+        def mvnHome = tool 'Maven3.9'
+
+        withEnv([
+            "JAVA_HOME=${javaHome}",
+            "PATH+JAVA=${javaHome}/bin",
+            "PATH+MAVEN=${mvnHome}/bin"
+        ]) {
+
+            sh """
+            find . -name "logback.xml" -delete
+            find . -name "logback-spring.xml" -delete
+
+            mvn clean verify jacoco:report \
+            -pl ${moduleName} -am \
+            -DtrimStackTrace=true
+            """
+
+            junit allowEmptyResults: true, testResults: "**/target/surefire-reports/*.xml, **/target/failsafe-reports/*.xml"
+
+            recordCoverage(
+                tools: [[parser: 'JACOCO', pattern: "${moduleName}/target/site/jacoco/jacoco.xml"]],
+                qualityGates: [
+                    [threshold: 70.0, metric: 'LINE', baseline: 'PROJECT', criticality: 'FAILURE']
+                ]
+            )
+
+            sh "mvn clean package -pl ${moduleName} -am -DskipTests"
+        }
+    }
+}
