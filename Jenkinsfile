@@ -179,7 +179,11 @@ def processModule(String moduleName) {
         withEnv(["JAVA_HOME=${javaHome}", "PATH+JAVA=${javaHome}/bin", "PATH+MAVEN=${mvnHome}/bin", "DOCKER_HOST=unix:///var/run/docker.sock"]) {
             
             // Chạy verify thay vì test để kích hoạt cả Integration Test (Failsafe)
-            sh "mvn clean verify jacoco:report -pl ${moduleName} -am -DtrimStackTrace=true"
+            sh """
+				mvn clean verify \
+				-pl ${moduleName} -am \
+				-Dlogback.configurationFile=src/test/resources/logback-test.xml
+				"""
 
             // 1. Thu thập kết quả Test
             junit allowEmptyResults: true, testResults: "**/target/surefire-reports/*.xml, **/target/failsafe-reports/*.xml"
