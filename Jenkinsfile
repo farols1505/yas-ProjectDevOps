@@ -8,6 +8,7 @@ pipeline {
 
     environment {
         SONARQUBE_ENV = 'SonarQubeServer'
+		TESTCONTAINERS_RYUK_DISABLED = 'true' // Vô hiệu hóa Ryuk để tránh lỗi permission[cite: 3]
     }
 
     stages {
@@ -135,10 +136,10 @@ pipeline {
             steps {
                 withSonarQubeEnv("${SONARQUBE_ENV}") {
 	            // Build để tạo .class files
-		    sh "mvn clean install -DskipTests"
+		    	sh "mvn clean install -DskipTests"
 
-		    // Sonar scan
-                    sh "mvn sonar:sonar -Dsonar.projectKey=yas-project"
+		    	// Sonar scan
+                sh "mvn sonar:sonar -Dsonar.projectKey=yas-project"
                 }
             }
         }
