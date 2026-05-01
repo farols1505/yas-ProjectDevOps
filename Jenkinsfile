@@ -174,8 +174,13 @@ def processModule(String moduleName) {
         def mvnHome = tool 'Maven3.9'
 
         // Bọc toàn bộ các lệnh Maven vào withEnv để nhận đúng Java 25[cite: 3]
-        withEnv(["JAVA_HOME=${javaHome}", "PATH+JAVA=${javaHome}/bin", "PATH+MAVEN=${mvnHome}/bin"]) {
-            echo "🔹 Processing module: ${moduleName}"
+        withEnv([
+            "JAVA_HOME=${javaHome}", 
+            "PATH+JAVA=${javaHome}/bin", 
+            "PATH+MAVEN=${mvnHome}/bin",
+            "DOCKER_HOST=unix:///var/run/docker.sock" // Cấu hình then chốt[cite: 3]
+        ]) {
+            echo "Processing module: ${moduleName}"
 
             // Test + Coverage với quyền truy cập Docker cho Testcontainers[cite: 2, 3]
             sh "mvn clean test jacoco:report -pl ${moduleName} -am"
