@@ -28,10 +28,11 @@ pipeline {
         }
 
         // ========================
-        // SECURITY SCAN
+        // SECURITY SCANS
         // ========================
         stage('Security Scans') {
             parallel {
+
                 stage('Gitleaks') {
                     steps {
                         sh "gitleaks detect --source . --report-format json --report-path gitleaks-report.json || true"
@@ -57,14 +58,14 @@ pipeline {
         stage('Modules Processing') {
             parallel {
 
+                stage('Rating') {
+                    when { changeset "rating/**" }
+                    steps { processModule("rating") }
+                }
+
                 stage('Product') {
                     when { changeset "product/**" }
                     steps { processModule("product") }
-                }
-
-                stage('Media') {
-                    when { changeset "media/**" }
-                    steps { processModule("media") }
                 }
 
                 stage('Cart') {
@@ -92,39 +93,15 @@ pipeline {
                     steps { processModule("tax") }
                 }
 
-                stage('Rating') {
-                    when { changeset "rating/**" }
-                    steps { processModule("rating") }
+                stage('Media') {
+                    when { changeset "media/**" }
+                    steps { processModule("media") }
                 }
 
                 stage('Location') {
                     when { changeset "location/**" }
                     steps { processModule("location") }
                 }
-            }
-        }
-
-        // ========================
-        // FALLBACK
-        // ========================
-        stage('No Changes Fallback') {
-            when {
-                not {
-                    anyOf {
-                        changeset "product/**"
-                        changeset "media/**"
-                        changeset "cart/**"
-                        changeset "customer/**"
-                        changeset "inventory/**"
-                        changeset "payment/**"
-                        changeset "tax/**"
-                        changeset "rating/**"
-                        changeset "location/**"
-                    }
-                }
-            }
-            steps {
-                echo "No module changes detected → skipping build/test."
             }
         }
 
@@ -147,11 +124,8 @@ pipeline {
             }
             steps {
                 withSonarQubeEnv("${SONARQUBE_ENV}") {
-                    sh "mvn install -DskipTests"
-
                     sh """
                     mvn sonar:sonar \
-                    -pl . -am \
                     -Dsonar.projectKey=yas-project \
                     -Dsonar.coverage.jacoco.xmlReportPaths=**/target/site/jacoco/jacoco.xml \
                     -DskipTests
@@ -195,11 +169,10 @@ pipeline {
     }
 }
 
-//
+
 // ========================
 // MODULE FUNCTION
 // ========================
-//
 def processModule(String moduleName) {
     script {
         def javaHome = tool 'JDK21'
@@ -212,7 +185,7 @@ def processModule(String moduleName) {
         ]) {
 
             sh """
-            # Fix lỗi logback /tmp
+            # Fix logback permission
             find . -name "logback.xml" -delete
             find . -name "logback-spring.xml" -delete
 
@@ -221,7 +194,6 @@ def processModule(String moduleName) {
             -DtrimStackTrace=true
             """
 
-            // Publish test results
             junit allowEmptyResults: true,
                   testResults: "**/target/surefire-reports/*.xml, **/target/failsafe-reports/*.xml"
 
