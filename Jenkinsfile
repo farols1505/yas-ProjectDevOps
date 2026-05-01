@@ -45,6 +45,8 @@ pipeline {
                             snyk test --all-projects --severity-threshold=high || true
                             """
 
+							sh "docker ps"
+
 			    archiveArtifacts artifacts: 'snyk-report.json', allowEmptyArchive: true
                         }
                     }
