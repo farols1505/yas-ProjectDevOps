@@ -26,6 +26,23 @@ pipeline {
                 ])
             }
         }
+        stage('Debug Workspace') {
+            steps {
+                sh """
+                    echo "===== CURRENT DIR ====="
+                    pwd
+
+                    echo "===== LIST FILES ====="
+                    ls -la
+
+                    echo "===== CHECK POM ====="
+                    cat pom.xml | head -n 50
+
+                    echo "===== CHECK MODULES ====="
+                    grep '<module>' pom.xml || true
+                    """
+            }
+        }
 
         // ========================
         // SECURITY SCANS
@@ -160,6 +177,8 @@ pipeline {
             }
         }
     }
+
+    
 
     post {
         success {
