@@ -142,13 +142,11 @@ pipeline {
             steps {
                 withSonarQubeEnv("${SONARQUBE_ENV}") {
                     sh """
-                    mvn clean install -DskipTests
+                    mvn install -DskipTests
 
                     mvn sonar:sonar \
-                    -Dsonar.projectKey=yas-project \
                     -Dsonar.coverage.jacoco.xmlReportPaths=**/target/site/jacoco/jacoco.xml
                     """
-
                 }
             }
         }
