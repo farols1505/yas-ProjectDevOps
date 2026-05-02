@@ -40,6 +40,8 @@ pipeline {
 
                     echo "===== CHECK MODULES ====="
                     grep '<module>' pom.xml || true
+
+                    mvn help:reactor
                     """
             }
         }
