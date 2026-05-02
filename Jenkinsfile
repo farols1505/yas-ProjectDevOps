@@ -252,6 +252,7 @@ def processModule(String moduleName) {
         ]) {
 
             sh """
+            # Fix lỗi logback /tmp
             find . -name "logback.xml" -delete
             find . -name "logback-spring.xml" -delete
 
@@ -260,7 +261,9 @@ def processModule(String moduleName) {
             -DtrimStackTrace=true
             """
 
-            junit allowEmptyResults: true, testResults: "**/target/surefire-reports/*.xml, **/target/failsafe-reports/*.xml"
+            // Publish test results
+            junit allowEmptyResults: true,
+                  testResults: "**/target/surefire-reports/*.xml, **/target/failsafe-reports/*.xml"
 
             recordCoverage(
                 tools: [[parser: 'JACOCO', pattern: "${moduleName}/target/site/jacoco/jacoco.xml"]],
@@ -268,8 +271,6 @@ def processModule(String moduleName) {
                     [threshold: 70.0, metric: 'LINE', baseline: 'PROJECT', criticality: 'FAILURE']
                 ]
             )
-
-            sh "mvn clean package -pl ${moduleName} -am -DskipTests"
         }
     }
 }
