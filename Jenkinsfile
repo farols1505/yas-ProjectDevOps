@@ -72,9 +72,9 @@ pipeline {
                     steps { processModule("cart") }
                 }
 
-                stage('Customer') {
-                    when { changeset "customer/**" }
-                    steps { processModule("customer") }
+                stage('Order') {
+                    when { changeset "order/**" }
+                    steps { processModule("order") }
                 }
 
                 stage('Inventory') {
@@ -114,7 +114,7 @@ pipeline {
                         changeset "product/**"
                         changeset "media/**"
                         changeset "cart/**"
-                        changeset "customer/**"
+                        changeset "order/**"
                         changeset "inventory/**"
                         changeset "payment/**"
                         changeset "tax/**"
@@ -137,7 +137,7 @@ pipeline {
                     changeset "product/**"
                     changeset "media/**"
                     changeset "cart/**"
-                    changeset "customer/**"
+                    changeset "order/**"
                     changeset "inventory/**"
                     changeset "payment/**"
                     changeset "tax/**"
@@ -168,7 +168,7 @@ pipeline {
                     changeset "product/**"
                     changeset "media/**"
                     changeset "cart/**"
-                    changeset "customer/**"
+                    changeset "order/**"
                     changeset "inventory/**"
                     changeset "payment/**"
                     changeset "tax/**"
