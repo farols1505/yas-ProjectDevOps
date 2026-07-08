@@ -9,6 +9,7 @@ pipeline {
     environment {
         SONARQUBE_ENV = 'SonarQubeServer'
         TESTCONTAINERS_RYUK_DISABLED = 'true'
+        REVISION = '1.0-SNAPSHOT'
     }
 
     stages {
@@ -57,9 +58,9 @@ pipeline {
         stage('Pre-Build') {
             steps {
                 // Build và verify common-library trước để chạy unit test và tránh xung đột ghi đè jacoco.exec
-                sh "mvn clean verify jacoco:report -pl common-library"
+                sh "mvn clean verify jacoco:report -pl common-library -Drevision=${REVISION}"
                 // Build và install tất cả các module còn lại vào local repo (không clean để giữ target của common-library)
-                sh "mvn install -DskipTests"
+                sh "mvn install -DskipTests -Drevision=${REVISION}"
             }
         }
 
@@ -161,13 +162,14 @@ pipeline {
                 withSonarQubeEnv("${SONARQUBE_ENV}") {
                     sh """
                     # Biên dịch cả code chính và code test của các module trong Maven reactor
-                    mvn test-compile -DskipTests
+                    mvn test-compile -DskipTests -Drevision=${REVISION}
 
                     # Quét Sonar và loại trừ thư mục automation-ui không thuộc Maven reactor
                     mvn sonar:sonar \
                     -Dsonar.projectKey=yas-project \
                     -Dsonar.coverage.jacoco.xmlReportPaths=**/target/site/jacoco/jacoco.xml \
                     -Dsonar.exclusions=automation-ui/** \
+                    -Drevision=${REVISION} \
                     -DskipTests
                     """
                 }
@@ -232,6 +234,7 @@ def processModule(String moduleName) {
 
             mvn clean verify jacoco:report \
             -pl ${moduleName} \
+            -Drevision=${REVISION} \
             -DtrimStackTrace=true
             """
 
