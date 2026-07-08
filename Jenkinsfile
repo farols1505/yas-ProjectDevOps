@@ -52,6 +52,18 @@ pipeline {
         }
 
         // ========================
+        // PRE-BUILD
+        // ========================
+        stage('Pre-Build') {
+            steps {
+                // Build và verify common-library trước để chạy unit test và tránh xung đột ghi đè jacoco.exec
+                sh "mvn clean verify jacoco:report -pl common-library"
+                // Build và install tất cả các module còn lại vào local repo (không clean để giữ target của common-library)
+                sh "mvn install -DskipTests"
+            }
+        }
+
+        // ========================
         // MODULE PROCESSING
         // ========================
         stage('Modules Processing') {
@@ -219,7 +231,7 @@ def processModule(String moduleName) {
             find . -name "logback-spring.xml" -delete
 
             mvn clean verify jacoco:report \
-            -pl ${moduleName} -am \
+            -pl ${moduleName} \
             -DtrimStackTrace=true
             """
 
