@@ -53,68 +53,51 @@ pipeline {
         }
 
         // ========================
-        // PRE-BUILD
+        // MODULE PROCESSING (tuần tự để tránh xung đột JaCoCo trên common-library)
         // ========================
-        stage('Pre-Build') {
-            steps {
-                // Build và verify common-library trước để chạy unit test và tránh xung đột ghi đè jacoco.exec
-                sh "mvn clean verify jacoco:report -pl common-library -Drevision=${REVISION}"
-                // Build và install tất cả các module còn lại vào local repo (không clean để giữ target của common-library)
-                sh "mvn install -DskipTests -Drevision=${REVISION}"
-            }
+        stage('Product') {
+            when { changeset "product/**" }
+            steps { processModule("product") }
         }
 
-        // ========================
-        // MODULE PROCESSING
-        // ========================
-        stage('Modules Processing') {
-            parallel {
+        stage('Media') {
+            when { changeset "media/**" }
+            steps { processModule("media") }
+        }
 
-                stage('Product') {
-                    when { changeset "product/**" }
-                    steps { processModule("product") }
-                }
+        stage('Cart') {
+            when { changeset "cart/**" }
+            steps { processModule("cart") }
+        }
 
-                stage('Media') {
-                    when { changeset "media/**" }
-                    steps { processModule("media") }
-                }
+        stage('Order') {
+            when { changeset "order/**" }
+            steps { processModule("order") }
+        }
 
-                stage('Cart') {
-                    when { changeset "cart/**" }
-                    steps { processModule("cart") }
-                }
+        stage('Inventory') {
+            when { changeset "inventory/**" }
+            steps { processModule("inventory") }
+        }
 
-                stage('Order') {
-                    when { changeset "order/**" }
-                    steps { processModule("order") }
-                }
+        stage('Payment') {
+            when { changeset "payment/**" }
+            steps { processModule("payment") }
+        }
 
-                stage('Inventory') {
-                    when { changeset "inventory/**" }
-                    steps { processModule("inventory") }
-                }
+        stage('Tax') {
+            when { changeset "tax/**" }
+            steps { processModule("tax") }
+        }
 
-                stage('Payment') {
-                    when { changeset "payment/**" }
-                    steps { processModule("payment") }
-                }
+        stage('Rating') {
+            when { changeset "rating/**" }
+            steps { processModule("rating") }
+        }
 
-                stage('Tax') {
-                    when { changeset "tax/**" }
-                    steps { processModule("tax") }
-                }
-
-                stage('Rating') {
-                    when { changeset "rating/**" }
-                    steps { processModule("rating") }
-                }
-
-                stage('Location') {
-                    when { changeset "location/**" }
-                    steps { processModule("location") }
-                }
-            }
+        stage('Location') {
+            when { changeset "location/**" }
+            steps { processModule("location") }
         }
 
         // ========================
@@ -161,10 +144,8 @@ pipeline {
             steps {
                 withSonarQubeEnv("${SONARQUBE_ENV}") {
                     sh """
-                    # Biên dịch cả code chính và code test của các module trong Maven reactor
                     mvn test-compile -DskipTests -Drevision=${REVISION}
 
-                    # Quét Sonar và loại trừ thư mục automation-ui không thuộc Maven reactor
                     mvn sonar:sonar \
                     -Dsonar.projectKey=yas-project \
                     -Dsonar.coverage.jacoco.xmlReportPaths=**/target/site/jacoco/jacoco.xml \
@@ -233,7 +214,7 @@ def processModule(String moduleName) {
             find . -name "logback-spring.xml" -delete
 
             mvn clean verify jacoco:report \
-            -pl ${moduleName} \
+            -pl ${moduleName} -am \
             -Drevision=${REVISION} \
             -DtrimStackTrace=true
             """
