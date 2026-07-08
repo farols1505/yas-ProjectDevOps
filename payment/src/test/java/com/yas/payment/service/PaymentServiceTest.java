@@ -21,6 +21,7 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -69,6 +70,25 @@ class PaymentServiceTest {
     }
 
     @Test
+    void initPayment_unknownProvider_throwsIllegalArgumentException() {
+        InitPaymentRequestVm req = InitPaymentRequestVm.builder()
+            .paymentMethod("NOT_A_REAL_PROVIDER")
+            .totalPrice(BigDecimal.ONE)
+            .checkoutId("c")
+            .build();
+        assertThrows(IllegalArgumentException.class, () -> paymentService.initPayment(req));
+    }
+
+    @Test
+    void capturePayment_unknownProvider_throwsIllegalArgumentException() {
+        CapturePaymentRequestVm req = CapturePaymentRequestVm.builder()
+            .paymentMethod("UNKNOWN")
+            .token("t")
+            .build();
+        assertThrows(IllegalArgumentException.class, () -> paymentService.capturePayment(req));
+    }
+
+    @Test
     void capturePayment_Success() {
         CapturePaymentRequestVm capturePaymentRequestVM = CapturePaymentRequestVm.builder()
                 .paymentMethod(PaymentMethod.PAYPAL.name()).token("123").build();
@@ -96,16 +116,16 @@ class PaymentServiceTest {
             .build();
     }
 
-    private void verifyPaymentCreation(CapturePaymentResponseVm capturedPayment) {
+    private void verifyPaymentCreation(CapturePaymentResponseVm responseVm) {
         ArgumentCaptor<Payment> paymentCaptor = ArgumentCaptor.forClass(Payment.class);
         verify(paymentRepository, times(1)).save(paymentCaptor.capture());
-        Payment capturedPaymentResult = paymentCaptor.getValue();
+        Payment saved = paymentCaptor.getValue();
 
-        assertThat(capturedPaymentResult.getCheckoutId()).isEqualTo(capturedPayment.checkoutId());
-        assertThat(capturedPaymentResult.getOrderId()).isEqualTo(capturedPayment.orderId());
-        assertThat(capturedPaymentResult.getPaymentStatus()).isEqualTo(capturedPayment.paymentStatus());
-        assertThat(capturedPaymentResult.getPaymentFee()).isEqualByComparingTo(capturedPayment.paymentFee());
-        assertThat(capturedPaymentResult.getAmount()).isEqualByComparingTo(capturedPayment.amount());
+        assertThat(saved.getCheckoutId()).isEqualTo(responseVm.checkoutId());
+        assertThat(saved.getOrderId()).isEqualTo(responseVm.orderId());
+        assertThat(saved.getPaymentStatus()).isEqualTo(responseVm.paymentStatus());
+        assertThat(saved.getPaymentFee()).isEqualByComparingTo(responseVm.paymentFee());
+        assertThat(saved.getAmount()).isEqualByComparingTo(responseVm.amount());
     }
 
     private void verifyOrderServiceInteractions(CapturedPayment capturedPayment) {

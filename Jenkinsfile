@@ -9,6 +9,7 @@ pipeline {
     environment {
         SONARQUBE_ENV = 'SonarQubeServer'
         TESTCONTAINERS_RYUK_DISABLED = 'true'
+        REVISION = '1.0-SNAPSHOT'
     }
 
     stages {
@@ -52,56 +53,51 @@ pipeline {
         }
 
         // ========================
-        // MODULE PROCESSING
+        // MODULE PROCESSING (tuần tự để tránh xung đột JaCoCo trên common-library)
         // ========================
-        stage('Modules Processing') {
-            parallel {
+        stage('Product') {
+            when { changeset "product/**" }
+            steps { processModule("product") }
+        }
 
-                stage('Product') {
-                    when { changeset "product/**" }
-                    steps { processModule("product") }
-                }
+        stage('Media') {
+            when { changeset "media/**" }
+            steps { processModule("media") }
+        }
 
-                stage('Media') {
-                    when { changeset "media/**" }
-                    steps { processModule("media") }
-                }
+        stage('Cart') {
+            when { changeset "cart/**" }
+            steps { processModule("cart") }
+        }
 
-                stage('Cart') {
-                    when { changeset "cart/**" }
-                    steps { processModule("cart") }
-                }
+        stage('Order') {
+            when { changeset "order/**" }
+            steps { processModule("order") }
+        }
 
-                stage('Order') {
-                    when { changeset "order/**" }
-                    steps { processModule("order") }
-                }
+        stage('Inventory') {
+            when { changeset "inventory/**" }
+            steps { processModule("inventory") }
+        }
 
-                stage('Inventory') {
-                    when { changeset "inventory/**" }
-                    steps { processModule("inventory") }
-                }
+        stage('Payment') {
+            when { changeset "payment/**" }
+            steps { processModule("payment") }
+        }
 
-                stage('Payment') {
-                    when { changeset "payment/**" }
-                    steps { processModule("payment") }
-                }
+        stage('Tax') {
+            when { changeset "tax/**" }
+            steps { processModule("tax") }
+        }
 
-                stage('Tax') {
-                    when { changeset "tax/**" }
-                    steps { processModule("tax") }
-                }
+        stage('Rating') {
+            when { changeset "rating/**" }
+            steps { processModule("rating") }
+        }
 
-                stage('Rating') {
-                    when { changeset "rating/**" }
-                    steps { processModule("rating") }
-                }
-
-                stage('Location') {
-                    when { changeset "location/**" }
-                    steps { processModule("location") }
-                }
-            }
+        stage('Location') {
+            when { changeset "location/**" }
+            steps { processModule("location") }
         }
 
         // ========================
@@ -148,11 +144,13 @@ pipeline {
             steps {
                 withSonarQubeEnv("${SONARQUBE_ENV}") {
                     sh """
-		            mvn compile -DskipTests
+                    mvn test-compile -DskipTests -Drevision=${REVISION}
 
                     mvn sonar:sonar \
                     -Dsonar.projectKey=yas-project \
                     -Dsonar.coverage.jacoco.xmlReportPaths=**/target/site/jacoco/jacoco.xml \
+                    -Dsonar.exclusions=automation-ui/** \
+                    -Drevision=${REVISION} \
                     -DskipTests
                     """
                 }
@@ -217,6 +215,7 @@ def processModule(String moduleName) {
 
             mvn clean verify jacoco:report \
             -pl ${moduleName} -am \
+            -Drevision=${REVISION} \
             -DtrimStackTrace=true
             """
 
