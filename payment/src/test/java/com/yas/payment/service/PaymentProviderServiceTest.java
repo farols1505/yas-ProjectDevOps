@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.yas.commonlibrary.exception.NotFoundException;
@@ -17,6 +18,7 @@ import com.yas.payment.repository.PaymentProviderRepository;
 import com.yas.payment.viewmodel.paymentprovider.CreatePaymentVm;
 import com.yas.payment.viewmodel.paymentprovider.PaymentProviderVm;
 import com.yas.payment.viewmodel.paymentprovider.UpdatePaymentVm;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -70,6 +72,7 @@ class PaymentProviderServiceTest {
         paymentProvider.setId("providerId");
         paymentProvider.setAdditionalSettings("additional settings");
         paymentProvider.setEnabled(true);
+        paymentProvider.setMediaId(99L);
     }
 
     @Test
@@ -154,12 +157,14 @@ class PaymentProviderServiceTest {
     void getEnabledPaymentProviders_ShouldReturnListOfEnabledPaymentProviders() {
         List<PaymentProvider> enabledProviders = List.of(paymentProvider);
         when(paymentProviderRepository.findByEnabledTrue(defaultPageable)).thenReturn(enabledProviders);
+        when(mediaService.getMediaVmMap(enabledProviders)).thenReturn(Collections.emptyMap());
 
         List<PaymentProviderVm> result = paymentProviderService.getEnabledPaymentProviders(defaultPageable);
 
         assertThat(result).hasSize(1);
         assertThat(result.getFirst().getId()).isEqualTo(paymentProvider.getId());
         verify(paymentProviderRepository, times(1)).findByEnabledTrue(defaultPageable);
+        verify(mediaService, times(1)).getMediaVmMap(enabledProviders);
     }
 
     @Test
@@ -170,6 +175,7 @@ class PaymentProviderServiceTest {
 
         assertThat(result).isEmpty();
         verify(paymentProviderRepository, times(1)).findByEnabledTrue(defaultPageable);
+        verifyNoInteractions(mediaService);
     }
 
     private static @NotNull PaymentProvider getPaymentProvider(String randomVal) {
