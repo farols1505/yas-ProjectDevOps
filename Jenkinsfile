@@ -72,9 +72,9 @@ pipeline {
                     steps { processModule("cart") }
                 }
 
-                stage('Order') {
-                    when { changeset "order/**" }
-                    steps { processModule("order") }
+                stage('Customer') {
+                    when { changeset "customer/**" }
+                    steps { processModule("customer") }
                 }
 
                 stage('Inventory') {
@@ -114,7 +114,7 @@ pipeline {
                         changeset "product/**"
                         changeset "media/**"
                         changeset "cart/**"
-                        changeset "order/**"
+                        changeset "customer/**"
                         changeset "inventory/**"
                         changeset "payment/**"
                         changeset "tax/**"
@@ -137,7 +137,7 @@ pipeline {
                     changeset "product/**"
                     changeset "media/**"
                     changeset "cart/**"
-                    changeset "order/**"
+                    changeset "customer/**"
                     changeset "inventory/**"
                     changeset "payment/**"
                     changeset "tax/**"
@@ -148,8 +148,8 @@ pipeline {
             steps {
                 withSonarQubeEnv("${SONARQUBE_ENV}") {
                     sh """
-		            mvn compile -DskipTests
-
+                    mvn compile -DskipTests
+                    
                     mvn sonar:sonar \
                     -Dsonar.projectKey=yas-project \
                     -Dsonar.coverage.jacoco.xmlReportPaths=**/target/site/jacoco/jacoco.xml \
@@ -168,7 +168,7 @@ pipeline {
                     changeset "product/**"
                     changeset "media/**"
                     changeset "cart/**"
-                    changeset "order/**"
+                    changeset "customer/**"
                     changeset "inventory/**"
                     changeset "payment/**"
                     changeset "tax/**"
@@ -211,13 +211,11 @@ def processModule(String moduleName) {
         ]) {
 
             sh """
-            # Fix lỗi logback /tmp
-            find . -name "logback.xml" -delete
-            find . -name "logback-spring.xml" -delete
-
             mvn clean verify jacoco:report \
             -pl ${moduleName} -am \
-            -DtrimStackTrace=true
+            -Drevision=${env.REVISION} \
+            -DtrimStackTrace=true \
+            -Dlogging.file.path=${env.WORKSPACE}/${moduleName}/target/logs
             """
 
             // Publish test results
