@@ -213,9 +213,9 @@ def processModule(String moduleName) {
             sh """
             mvn clean verify jacoco:report \
             -pl ${moduleName} -am \
-            -Drevision=${REVISION} \
+            -Drevision=${env.REVISION} \
             -DtrimStackTrace=true \
-            -Dlogging.file.path=${WORKSPACE}/${moduleName}/target/logs
+            -Dlogging.file.path=${env.WORKSPACE}/${moduleName}/target/logs
             """
 
             // Publish test results
