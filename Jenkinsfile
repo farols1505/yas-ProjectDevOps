@@ -211,13 +211,11 @@ def processModule(String moduleName) {
         ]) {
 
             sh """
-            # Fix lỗi logback /tmp
-            find . -name "logback.xml" -delete
-            find . -name "logback-spring.xml" -delete
-
             mvn clean verify jacoco:report \
             -pl ${moduleName} -am \
-            -DtrimStackTrace=true
+            -Drevision=${REVISION} \
+            -DtrimStackTrace=true \
+            -Dlogging.file.path=${WORKSPACE}/${moduleName}/target/logs
             """
 
             // Publish test results
